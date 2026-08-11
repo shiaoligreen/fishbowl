@@ -32,6 +32,7 @@ const gameMessage = document.getElementById('game-message');
 const roomFromUrl = new URLSearchParams(window.location.search).get('room');
 const state = {
   roomId: normalizeRoom(roomFromUrl || 'public'),
+  storageMode: 'server',
   cards: [],
   rounds: defaultRounds.map((round) => ({ ...round, enabled: true })),
   currentRoundIndex: 0,
@@ -55,6 +56,10 @@ function roomApiUrl(path = '') {
   return `/api/rooms/${encodeURIComponent(state.roomId)}/cards${path}`;
 }
 
+function roomStorageKey() {
+  return `fishbowl-room-${state.roomId}`;
+}
+
 async function requestJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -73,18 +78,52 @@ function clearServerError() {
   serverStatus.textContent = '';
 }
 
+function readLocalCards() {
+  try {
+    const raw = window.localStorage.getItem(roomStorageKey());
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeLocalCards(cards) {
+  window.localStorage.setItem(roomStorageKey(), JSON.stringify(cards));
+}
+
 async function syncCards() {
+  if (state.storageMode === 'local') {
+    state.cards = readLocalCards();
+    renderWordList();
+    showServerError('GitHub Pages mode: cards are stored in this browser for the selected room code.');
+    return;
+  }
+
   try {
     const data = await requestJson(roomApiUrl());
     state.cards = Array.isArray(data.cards) ? data.cards : [];
     renderWordList();
     clearServerError();
   } catch (error) {
-    showServerError('Cannot reach server. Run this app with `node server.js`.');
+    state.storageMode = 'local';
+    state.cards = readLocalCards();
+    renderWordList();
+    showServerError('GitHub Pages mode: cards are stored in this browser for the selected room code.');
   }
 }
 
 async function addCard(value) {
+  if (state.storageMode === 'local') {
+    state.cards.push(value);
+    writeLocalCards(state.cards);
+    renderWordList();
+    return;
+  }
+
   const data = await requestJson(roomApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -96,6 +135,13 @@ async function addCard(value) {
 }
 
 async function removeCard(index) {
+  if (state.storageMode === 'local') {
+    state.cards.splice(index, 1);
+    writeLocalCards(state.cards);
+    renderWordList();
+    return;
+  }
+
   const data = await requestJson(roomApiUrl(`/${index}`), { method: 'DELETE' });
   state.cards = data.cards;
   renderWordList();
@@ -275,6 +321,7 @@ function startRound() {
 roomForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   state.roomId = normalizeRoom(roomInput.value || 'public');
+  state.storageMode = 'server';
   updateRoomUrl();
   updateRoomUi();
   await syncCards();
@@ -342,6 +389,12 @@ function startPolling() {
   }
   state.pollingId = setInterval(syncCards, 2000);
 }
+
+window.addEventListener('storage', (event) => {
+  if (event.key === roomStorageKey()) {
+    syncCards();
+  }
+});
 
 updateRoomUi();
 updateRoomUrl();

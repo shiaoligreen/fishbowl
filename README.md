@@ -13,6 +13,14 @@ A lightweight online Fishbowl game.
 
 ## Run locally
 
+### GitHub Pages
+
+This project can be hosted as static files on GitHub Pages.
+- On GitHub Pages, the game runs in browser-storage mode (per room code, per browser).
+- No backend setup is required.
+
+### Local multi-device mode
+
 Run the server from `/home/runner/work/fishbowl/fishbowl`:
 
 ```bash
