@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fishbowl Game</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="app">
+    <h1>Fishbowl</h1>
+
+    <section class="panel" id="submission-panel">
+      <h2>1) Submit Words</h2>
+      <p>Add as many words or phrases as you want.</p>
+      <form id="submission-form">
+        <input id="word-input" type="text" maxlength="60" placeholder="Enter a word or phrase" required />
+        <button type="submit">Add</button>
+      </form>
+      <p id="duplicate-warning" class="warning" hidden></p>
+      <ul id="word-list"></ul>
+    </section>
+
+    <section class="panel" id="rounds-panel">
+      <h2>2) Customize Rounds</h2>
+      <p>Pick rounds and reorder them.</p>
+      <ul id="round-list"></ul>
+      <button id="start-game">Start Game</button>
+    </section>
+
+    <section class="panel" id="game-panel" hidden>
+      <h2 id="round-title"></h2>
+      <p id="round-rule"></p>
+      <div class="status-row">
+        <span>Time: <strong id="timer">60</strong>s</span>
+        <span>Score: <strong id="score">0</strong></span>
+        <span>Remaining: <strong id="remaining">0</strong></span>
+      </div>
+      <div class="card" id="card-display">Press start to play</div>
+      <div class="actions">
+        <button id="correct-btn">Correct</button>
+        <button id="skip-btn" class="secondary">Skip</button>
+      </div>
+      <button id="next-round" hidden>Next Round</button>
+      <p id="game-message"></p>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

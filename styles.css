@@ -1,0 +1,122 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f5f8fb;
+  color: #12263a;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 32px;
+}
+
+h1 {
+  margin-top: 0;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="text"] {
+  flex: 1;
+  padding: 8px;
+}
+
+button {
+  border: none;
+  background: #1f6feb;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #64748b;
+}
+
+button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+#word-list li,
+#round-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.warning {
+  color: #b91c1c;
+  margin: 8px 0 0;
+}
+
+.duplicate {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.round-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.round-controls button {
+  padding: 4px 8px;
+}
+
+.status-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+
+.card {
+  border: 2px dashed #94a3b8;
+  border-radius: 8px;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  text-align: center;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+#game-message {
+  min-height: 24px;
+  margin-bottom: 0;
+}
