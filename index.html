@@ -13,11 +13,21 @@
     <section class="panel" id="room-panel">
       <h2>Room</h2>
       <p>Share the same room code across devices to submit words together.</p>
+      <form id="api-form" class="room-form">
+        <input id="api-input" type="url" placeholder="Optional API base URL (for GitHub Pages)" />
+        <button type="submit" class="secondary">Save API URL</button>
+      </form>
       <form id="room-form" class="room-form">
         <input id="room-input" type="text" maxlength="32" placeholder="Room code" />
         <button type="submit">Join Room</button>
       </form>
+      <form id="player-form" class="room-form">
+        <input id="player-input" type="text" maxlength="32" placeholder="Your player name" />
+        <button type="submit">Join as Player</button>
+      </form>
       <p>Current room: <strong id="current-room"></strong></p>
+      <p>You: <strong id="current-player">Not joined</strong></p>
+      <ul id="player-list"></ul>
       <p id="server-status" class="warning" hidden></p>
     </section>
 
@@ -39,8 +49,8 @@
       <button id="start-game">Start Game</button>
     </section>
 
-    <section class="panel" id="game-panel" hidden>
-      <h2 id="round-title"></h2>
+    <section class="panel" id="game-panel">
+      <h2 id="round-title">No active game</h2>
       <p id="round-rule"></p>
       <div class="status-row">
         <span>Time: <strong id="timer">60</strong>s</span>

@@ -10,6 +10,14 @@ const roomInput = document.getElementById('room-input');
 const currentRoom = document.getElementById('current-room');
 const serverStatus = document.getElementById('server-status');
 
+const apiForm = document.getElementById('api-form');
+const apiInput = document.getElementById('api-input');
+
+const playerForm = document.getElementById('player-form');
+const playerInput = document.getElementById('player-input');
+const currentPlayer = document.getElementById('current-player');
+const playerList = document.getElementById('player-list');
+
 const wordInput = document.getElementById('word-input');
 const wordList = document.getElementById('word-list');
 const duplicateWarning = document.getElementById('duplicate-warning');
@@ -17,7 +25,6 @@ const submissionForm = document.getElementById('submission-form');
 const startGameButton = document.getElementById('start-game');
 
 const roundList = document.getElementById('round-list');
-const gamePanel = document.getElementById('game-panel');
 const roundTitle = document.getElementById('round-title');
 const roundRule = document.getElementById('round-rule');
 const timerEl = document.getElementById('timer');
@@ -29,43 +36,57 @@ const skipBtn = document.getElementById('skip-btn');
 const nextRoundBtn = document.getElementById('next-round');
 const gameMessage = document.getElementById('game-message');
 
-const roomFromUrl = new URLSearchParams(window.location.search).get('room');
+const params = new URLSearchParams(window.location.search);
+const roomFromUrl = params.get('room');
+const apiFromUrl = params.get('api');
+
+if (apiFromUrl) {
+  window.localStorage.setItem('fishbowl-api-base', apiFromUrl);
+}
+
 const state = {
   roomId: normalizeRoom(roomFromUrl || 'public'),
+  apiBase: String(window.localStorage.getItem('fishbowl-api-base') || ''),
   storageMode: 'server',
   cards: [],
+  duplicates: [],
+  players: [],
+  playerId: String(window.localStorage.getItem('fishbowl-player-id') || ''),
+  playerName: String(window.localStorage.getItem('fishbowl-player-name') || ''),
   rounds: defaultRounds.map((round) => ({ ...round, enabled: true })),
-  currentRoundIndex: 0,
-  activeDeck: [],
-  currentCard: null,
-  score: 0,
-  secondsLeft: 60,
-  timerId: null,
+  game: null,
   pollingId: null
 };
 
-function normalizeCard(value) {
-  return value.trim().toLowerCase();
-}
-
 function normalizeRoom(value) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'public';
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'public';
 }
 
 function roomApiUrl(path = '') {
-  return `/api/rooms/${encodeURIComponent(state.roomId)}/cards${path}`;
+  const base = state.apiBase.trim().replace(/\/$/, '');
+  return `${base}/api/rooms/${encodeURIComponent(state.roomId)}${path}`;
 }
 
 function roomStorageKey() {
   return `fishbowl-room-${state.roomId}`;
 }
 
-async function requestJson(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
-  return response.json();
+function requestJson(url, options) {
+  return fetch(url, options).then(async (response) => {
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (error) {
+      data = {};
+    }
+    if (!response.ok) {
+      throw Object.assign(new Error(data.message || data.error || `Request failed (${response.status})`), {
+        status: response.status,
+        data
+      });
+    }
+    return data;
+  });
 }
 
 function showServerError(message) {
@@ -76,6 +97,10 @@ function showServerError(message) {
 function clearServerError() {
   serverStatus.hidden = true;
   serverStatus.textContent = '';
+}
+
+function writeLocalCards(cards) {
+  window.localStorage.setItem(roomStorageKey(), JSON.stringify(cards));
 }
 
 function readLocalCards() {
@@ -91,102 +116,35 @@ function readLocalCards() {
   }
 }
 
-function writeLocalCards(cards) {
-  window.localStorage.setItem(roomStorageKey(), JSON.stringify(cards));
-}
-
-async function syncCards() {
-  if (state.storageMode === 'local') {
-    state.cards = readLocalCards();
-    renderWordList();
-    showServerError('GitHub Pages mode: cards are stored in this browser for the selected room code.');
-    return;
-  }
-
-  try {
-    const data = await requestJson(roomApiUrl());
-    state.cards = Array.isArray(data.cards) ? data.cards : [];
-    renderWordList();
-    clearServerError();
-  } catch (error) {
-    state.storageMode = 'local';
-    state.cards = readLocalCards();
-    renderWordList();
-    showServerError('GitHub Pages mode: cards are stored in this browser for the selected room code.');
-  }
-}
-
-async function addCard(value) {
-  if (state.storageMode === 'local') {
-    state.cards.push(value);
-    writeLocalCards(state.cards);
-    renderWordList();
-    return;
-  }
-
-  const data = await requestJson(roomApiUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ word: value })
-  });
-  state.cards = data.cards;
-  renderWordList();
-  clearServerError();
-}
-
-async function removeCard(index) {
-  if (state.storageMode === 'local') {
-    state.cards.splice(index, 1);
-    writeLocalCards(state.cards);
-    renderWordList();
-    return;
-  }
-
-  const data = await requestJson(roomApiUrl(`/${index}`), { method: 'DELETE' });
-  state.cards = data.cards;
-  renderWordList();
-  clearServerError();
-}
-
 function updateRoomUrl() {
-  const nextUrl = `${window.location.pathname}?room=${encodeURIComponent(state.roomId)}`;
-  window.history.replaceState({}, '', nextUrl);
-}
-
-function updateRoomUi() {
-  currentRoom.textContent = state.roomId;
-  roomInput.value = state.roomId;
-}
-
-function shuffle(items) {
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('room', state.roomId);
+  if (state.apiBase.trim()) {
+    nextUrl.searchParams.set('api', state.apiBase.trim());
+  } else {
+    nextUrl.searchParams.delete('api');
   }
-  return arr;
+  window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
 }
 
 function renderWordList() {
   const counts = state.cards.reduce((acc, card) => {
-    const key = normalizeCard(card);
-    acc[key] = (acc[key] || 0) + 1;
+    const normalized = card.trim().toLowerCase();
+    acc[normalized] = (acc[normalized] || 0) + 1;
     return acc;
   }, {});
 
-  const duplicateWords = Object.entries(counts)
-    .filter(([, count]) => count > 1)
-    .map(([word]) => word);
+  const duplicateWords = state.storageMode === 'server'
+    ? state.duplicates
+    : Object.entries(counts).filter(([, count]) => count > 1).map(([word]) => word);
 
   duplicateWarning.hidden = duplicateWords.length === 0;
-  duplicateWarning.textContent = duplicateWords.length
-    ? `Repeated word(s): ${duplicateWords.join(', ')}`
-    : '';
+  duplicateWarning.textContent = duplicateWords.length ? `Repeated word(s): ${duplicateWords.join(', ')}` : '';
 
   wordList.innerHTML = '';
   state.cards.forEach((card, index) => {
     const li = document.createElement('li');
-    if (counts[normalizeCard(card)] > 1) {
+    if (counts[card.trim().toLowerCase()] > 1) {
       li.classList.add('duplicate');
     }
 
@@ -199,7 +157,14 @@ function renderWordList() {
     removeBtn.textContent = 'Remove';
     removeBtn.addEventListener('click', async () => {
       try {
-        await removeCard(index);
+        if (state.storageMode === 'local') {
+          state.cards.splice(index, 1);
+          writeLocalCards(state.cards);
+          renderWordList();
+          return;
+        }
+        await requestJson(roomApiUrl(`/cards/${index}`), { method: 'DELETE' });
+        await syncRoomState();
       } catch (error) {
         showServerError('Could not remove card. Try again.');
       }
@@ -208,6 +173,17 @@ function renderWordList() {
     li.append(text, removeBtn);
     wordList.appendChild(li);
   });
+}
+
+function renderPlayers() {
+  playerList.innerHTML = '';
+  state.players.forEach((player) => {
+    const li = document.createElement('li');
+    li.textContent = player.id === state.playerId ? `${player.name} (you)` : player.name;
+    playerList.appendChild(li);
+  });
+
+  currentPlayer.textContent = state.playerName || 'Not joined';
 }
 
 function renderRounds() {
@@ -253,69 +229,103 @@ function renderRounds() {
   });
 }
 
-function stopTimer() {
-  if (state.timerId) {
-    clearInterval(state.timerId);
-    state.timerId = null;
-  }
-}
-
-function drawCard() {
-  if (state.activeDeck.length === 0) {
-    state.currentCard = null;
-    cardDisplay.textContent = 'Round complete!';
-    endRound('All cards guessed this round.');
-    return;
-  }
-
-  state.currentCard = state.activeDeck.shift();
-  cardDisplay.textContent = state.currentCard;
-  remainingEl.textContent = String(state.activeDeck.length + 1);
-}
-
-function endRound(message) {
-  stopTimer();
-  correctBtn.disabled = true;
-  skipBtn.disabled = true;
-  nextRoundBtn.hidden = false;
-  gameMessage.textContent = message;
-}
-
-function runTimer() {
-  timerEl.textContent = String(state.secondsLeft);
-  state.timerId = setInterval(() => {
-    state.secondsLeft -= 1;
-    timerEl.textContent = String(state.secondsLeft);
-    if (state.secondsLeft <= 0) {
-      endRound('Time is up!');
-    }
-  }, 1000);
-}
-
-function startRound() {
-  const rounds = state.rounds.filter((round) => round.enabled);
-  const round = rounds[state.currentRoundIndex];
-  if (!round) {
-    roundTitle.textContent = 'Game complete';
+function renderGame() {
+  if (!state.game) {
+    roundTitle.textContent = 'No active game';
     roundRule.textContent = '';
-    cardDisplay.textContent = 'Nice game!';
-    gameMessage.textContent = `Final score: ${state.score}`;
+    timerEl.textContent = '60';
+    scoreEl.textContent = '0';
+    remainingEl.textContent = '0';
+    cardDisplay.textContent = 'Press start to play';
+    gameMessage.textContent = '';
     nextRoundBtn.hidden = true;
+    correctBtn.disabled = true;
+    skipBtn.disabled = true;
     return;
   }
 
-  gamePanel.hidden = false;
-  roundTitle.textContent = `Round ${state.currentRoundIndex + 1}: ${round.name}`;
-  roundRule.textContent = round.rule;
-  state.activeDeck = shuffle(state.cards);
-  state.secondsLeft = 60;
-  nextRoundBtn.hidden = true;
-  gameMessage.textContent = '';
-  correctBtn.disabled = false;
-  skipBtn.disabled = false;
-  remainingEl.textContent = String(state.activeDeck.length);
-  drawCard();
-  runTimer();
+  roundTitle.textContent = state.game.roundTitle;
+  roundRule.textContent = state.game.roundRule;
+  timerEl.textContent = String(state.game.secondsLeft);
+  scoreEl.textContent = String(state.game.totalScore);
+  remainingEl.textContent = String(state.game.remaining);
+  cardDisplay.textContent = state.game.currentCard || (state.game.status === 'complete' ? 'Nice game!' : 'Round complete!');
+
+  const isActive = state.playerId && state.game.activePlayerId === state.playerId && state.game.status === 'running';
+  correctBtn.disabled = !isActive;
+  skipBtn.disabled = !isActive;
+  nextRoundBtn.hidden = !state.game.nextRoundAvailable;
+
+  const statusLine = state.storageMode === 'local'
+    ? 'Single-browser mode only. Shared turn sync needs a running server API.'
+    : state.game.activePlayerName
+      ? `Turn: ${state.game.activePlayerName}`
+      : 'No active player';
+
+  gameMessage.textContent = [statusLine, state.game.message].filter(Boolean).join(' • ');
+}
+
+async function syncRoomState() {
+  if (state.storageMode === 'local') {
+    state.cards = readLocalCards();
+    state.duplicates = [];
+    renderWordList();
+    renderPlayers();
+    renderGame();
+    return;
+  }
+
+  try {
+    const data = await requestJson(roomApiUrl('/state'));
+    state.cards = Array.isArray(data.cards) ? data.cards : [];
+    state.duplicates = Array.isArray(data.duplicates) ? data.duplicates : [];
+    state.players = Array.isArray(data.players) ? data.players : [];
+    state.game = data.game || null;
+
+    if (state.playerId && !state.players.some((player) => player.id === state.playerId)) {
+      state.playerId = '';
+      state.playerName = '';
+      window.localStorage.removeItem('fishbowl-player-id');
+      window.localStorage.removeItem('fishbowl-player-name');
+    }
+
+    renderWordList();
+    renderPlayers();
+    renderGame();
+    clearServerError();
+  } catch (error) {
+    state.storageMode = 'local';
+    state.cards = readLocalCards();
+    state.players = [];
+    state.game = null;
+    renderWordList();
+    renderPlayers();
+    renderGame();
+    showServerError('Server unavailable. Single-browser fallback mode is active. For cross-device sync on GitHub Pages, host server.js and set API URL.');
+  }
+}
+
+async function joinPlayer(name) {
+  if (state.storageMode === 'local') {
+    state.playerName = name;
+    state.playerId = 'local-player';
+    window.localStorage.setItem('fishbowl-player-id', state.playerId);
+    window.localStorage.setItem('fishbowl-player-name', state.playerName);
+    renderPlayers();
+    return;
+  }
+
+  const data = await requestJson(roomApiUrl('/players/join'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+
+  state.playerId = data.player.id;
+  state.playerName = data.player.name;
+  window.localStorage.setItem('fishbowl-player-id', state.playerId);
+  window.localStorage.setItem('fishbowl-player-name', state.playerName);
+  await syncRoomState();
 }
 
 roomForm.addEventListener('submit', async (event) => {
@@ -323,8 +333,32 @@ roomForm.addEventListener('submit', async (event) => {
   state.roomId = normalizeRoom(roomInput.value || 'public');
   state.storageMode = 'server';
   updateRoomUrl();
-  updateRoomUi();
-  await syncCards();
+  currentRoom.textContent = state.roomId;
+  await syncRoomState();
+});
+
+apiForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  state.apiBase = apiInput.value.trim();
+  window.localStorage.setItem('fishbowl-api-base', state.apiBase);
+  state.storageMode = 'server';
+  updateRoomUrl();
+  await syncRoomState();
+});
+
+playerForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const name = playerInput.value.trim();
+  if (!name) {
+    return;
+  }
+
+  try {
+    await joinPlayer(name);
+    playerInput.value = '';
+  } catch (error) {
+    showServerError('Could not join player. Try again.');
+  }
 });
 
 submissionForm.addEventListener('submit', async (event) => {
@@ -335,16 +369,38 @@ submissionForm.addEventListener('submit', async (event) => {
   }
 
   try {
-    await addCard(value);
+    if (state.storageMode === 'local') {
+      state.cards.push(value);
+      writeLocalCards(state.cards);
+      renderWordList();
+      wordInput.value = '';
+      return;
+    }
+
+    await requestJson(roomApiUrl('/cards'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: value, playerId: state.playerId })
+    });
     wordInput.value = '';
+    await syncRoomState();
   } catch (error) {
+    if (error.status === 409) {
+      showServerError(error.message);
+      return;
+    }
     showServerError('Could not submit card. Try again.');
   }
 });
 
-startGameButton.addEventListener('click', () => {
-  if (state.cards.length === 0) {
-    window.alert('Add at least one card before starting.');
+startGameButton.addEventListener('click', async () => {
+  if (state.storageMode === 'local') {
+    showServerError('Start game sync requires server mode. Local fallback is single-browser only.');
+    return;
+  }
+
+  if (!state.playerId) {
+    showServerError('Join as a player before starting.');
     return;
   }
 
@@ -353,51 +409,84 @@ startGameButton.addEventListener('click', () => {
     return;
   }
 
-  state.currentRoundIndex = 0;
-  state.score = 0;
-  scoreEl.textContent = '0';
-  startRound();
+  try {
+    await requestJson(roomApiUrl('/game/start'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rounds: state.rounds })
+    });
+    await syncRoomState();
+  } catch (error) {
+    showServerError(error.message || 'Could not start game.');
+  }
 });
 
-correctBtn.addEventListener('click', () => {
-  if (!state.currentCard) {
+correctBtn.addEventListener('click', async () => {
+  if (!state.playerId || state.storageMode === 'local') {
     return;
   }
-
-  state.score += 1;
-  scoreEl.textContent = String(state.score);
-  drawCard();
+  try {
+    await requestJson(roomApiUrl('/game/action'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId: state.playerId, action: 'correct' })
+    });
+    await syncRoomState();
+  } catch (error) {
+    showServerError(error.message || 'Action failed.');
+  }
 });
 
-skipBtn.addEventListener('click', () => {
-  if (!state.currentCard) {
+skipBtn.addEventListener('click', async () => {
+  if (!state.playerId || state.storageMode === 'local') {
     return;
   }
-
-  state.activeDeck.push(state.currentCard);
-  drawCard();
+  try {
+    await requestJson(roomApiUrl('/game/action'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId: state.playerId, action: 'skip' })
+    });
+    await syncRoomState();
+  } catch (error) {
+    showServerError(error.message || 'Action failed.');
+  }
 });
 
-nextRoundBtn.addEventListener('click', () => {
-  state.currentRoundIndex += 1;
-  startRound();
+nextRoundBtn.addEventListener('click', async () => {
+  if (!state.playerId || state.storageMode === 'local') {
+    return;
+  }
+  try {
+    await requestJson(roomApiUrl('/game/action'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId: state.playerId, action: 'next-round' })
+    });
+    await syncRoomState();
+  } catch (error) {
+    showServerError(error.message || 'Could not start next round.');
+  }
 });
 
 function startPolling() {
   if (state.pollingId) {
     clearInterval(state.pollingId);
   }
-  state.pollingId = setInterval(syncCards, 2000);
+  state.pollingId = setInterval(syncRoomState, 1000);
 }
 
 window.addEventListener('storage', (event) => {
   if (event.key === roomStorageKey()) {
-    syncCards();
+    syncRoomState();
   }
 });
 
-updateRoomUi();
-updateRoomUrl();
+roomInput.value = state.roomId;
+currentRoom.textContent = state.roomId;
+apiInput.value = state.apiBase;
 renderRounds();
-syncCards();
+renderGame();
+renderPlayers();
+syncRoomState();
 startPolling();
