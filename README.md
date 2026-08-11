@@ -18,6 +18,12 @@ A lightweight online Fishbowl game.
 This project can be hosted as static files on GitHub Pages.
 - On GitHub Pages, the game runs in browser-storage mode (per room code, per browser).
 - No backend setup is required.
+- A deployment workflow is included at `/home/runner/work/fishbowl/fishbowl/.github/workflows/deploy-pages.yml`.
+
+To publish:
+1. Push to the `main` branch.
+2. In GitHub repository settings, set **Pages** source to **GitHub Actions**.
+3. Wait for the **Deploy static site to Pages** workflow to finish.
 
 ### Local multi-device mode
 
