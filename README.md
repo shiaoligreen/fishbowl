@@ -5,27 +5,14 @@ A lightweight online Fishbowl game.
 ## Features
 
 - Unlimited word/phrase submissions
-- Repeated-word flagging in the submitted list
+- Backend-enforced duplicate checking per room
+- Shared room state across devices when using `server.js`
+- Rotating player turns each round in shared game mode
 - One-minute round timer
 - Skip cards during rounds
 - Customizable rounds (Taboo, Charades, One Word, One Sound) with ordering
-- Shared room-based submissions across multiple devices
 
 ## Run locally
-
-### GitHub Pages
-
-This project can be hosted as static files on GitHub Pages.
-- On GitHub Pages, the game runs in browser-storage mode (per room code, per browser).
-- No backend setup is required.
-- A deployment workflow is included at `/home/runner/work/fishbowl/fishbowl/.github/workflows/deploy-pages.yml`.
-
-To publish:
-1. Push to the `main` branch.
-2. In GitHub repository settings, set **Pages** source to **GitHub Actions**.
-3. Wait for the **Deploy static site to Pages** workflow to finish.
-
-### Local multi-device mode
 
 Run the server from `/home/runner/work/fishbowl/fishbowl`:
 
@@ -35,4 +22,15 @@ node server.js
 
 Then open `http://localhost:8080`.
 
-To submit words from multiple devices, open the same URL and join the same room code on each device.
+To submit words and play from multiple devices, open the same URL and join the same room code on each device.
+
+## GitHub Pages + shared server mode
+
+GitHub Pages hosts only static files, so cross-device sync needs a running `server.js` instance.
+
+1. Host this repository's `server.js` on any Node-compatible host.
+2. Open the GitHub Pages site.
+3. Set the API base URL in the page (or use `?api=https://your-server.example.com` in the URL).
+4. Join the same room and player names across devices.
+
+If the API is unavailable, the app falls back to single-browser local storage mode.
