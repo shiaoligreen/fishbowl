@@ -5,6 +5,11 @@ const defaultRounds = [
   { id: 'one-sound', name: 'One Sound', rule: 'Use one sound/noise only.' }
 ];
 
+const roomForm = document.getElementById('room-form');
+const roomInput = document.getElementById('room-input');
+const currentRoom = document.getElementById('current-room');
+const serverStatus = document.getElementById('server-status');
+
 const wordInput = document.getElementById('word-input');
 const wordList = document.getElementById('word-list');
 const duplicateWarning = document.getElementById('duplicate-warning');
@@ -24,7 +29,9 @@ const skipBtn = document.getElementById('skip-btn');
 const nextRoundBtn = document.getElementById('next-round');
 const gameMessage = document.getElementById('game-message');
 
+const roomFromUrl = new URLSearchParams(window.location.search).get('room');
 const state = {
+  roomId: normalizeRoom(roomFromUrl || 'public'),
   cards: [],
   rounds: defaultRounds.map((round) => ({ ...round, enabled: true })),
   currentRoundIndex: 0,
@@ -32,11 +39,77 @@ const state = {
   currentCard: null,
   score: 0,
   secondsLeft: 60,
-  timerId: null
+  timerId: null,
+  pollingId: null
 };
 
 function normalizeCard(value) {
   return value.trim().toLowerCase();
+}
+
+function normalizeRoom(value) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'public';
+}
+
+function roomApiUrl(path = '') {
+  return `/api/rooms/${encodeURIComponent(state.roomId)}/cards${path}`;
+}
+
+async function requestJson(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+  return response.json();
+}
+
+function showServerError(message) {
+  serverStatus.hidden = false;
+  serverStatus.textContent = message;
+}
+
+function clearServerError() {
+  serverStatus.hidden = true;
+  serverStatus.textContent = '';
+}
+
+async function syncCards() {
+  try {
+    const data = await requestJson(roomApiUrl());
+    state.cards = Array.isArray(data.cards) ? data.cards : [];
+    renderWordList();
+    clearServerError();
+  } catch (error) {
+    showServerError('Cannot reach server. Run this app with `node server.js`.');
+  }
+}
+
+async function addCard(value) {
+  const data = await requestJson(roomApiUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word: value })
+  });
+  state.cards = data.cards;
+  renderWordList();
+  clearServerError();
+}
+
+async function removeCard(index) {
+  const data = await requestJson(roomApiUrl(`/${index}`), { method: 'DELETE' });
+  state.cards = data.cards;
+  renderWordList();
+  clearServerError();
+}
+
+function updateRoomUrl() {
+  const nextUrl = `${window.location.pathname}?room=${encodeURIComponent(state.roomId)}`;
+  window.history.replaceState({}, '', nextUrl);
+}
+
+function updateRoomUi() {
+  currentRoom.textContent = state.roomId;
+  roomInput.value = state.roomId;
 }
 
 function shuffle(items) {
@@ -78,9 +151,12 @@ function renderWordList() {
     removeBtn.type = 'button';
     removeBtn.className = 'secondary';
     removeBtn.textContent = 'Remove';
-    removeBtn.addEventListener('click', () => {
-      state.cards.splice(index, 1);
-      renderWordList();
+    removeBtn.addEventListener('click', async () => {
+      try {
+        await removeCard(index);
+      } catch (error) {
+        showServerError('Could not remove card. Try again.');
+      }
     });
 
     li.append(text, removeBtn);
@@ -196,16 +272,27 @@ function startRound() {
   runTimer();
 }
 
-submissionForm.addEventListener('submit', (event) => {
+roomForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  state.roomId = normalizeRoom(roomInput.value || 'public');
+  updateRoomUrl();
+  updateRoomUi();
+  await syncCards();
+});
+
+submissionForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const value = wordInput.value.trim();
   if (!value) {
     return;
   }
 
-  state.cards.push(value);
-  wordInput.value = '';
-  renderWordList();
+  try {
+    await addCard(value);
+    wordInput.value = '';
+  } catch (error) {
+    showServerError('Could not submit card. Try again.');
+  }
 });
 
 startGameButton.addEventListener('click', () => {
@@ -249,5 +336,15 @@ nextRoundBtn.addEventListener('click', () => {
   startRound();
 });
 
-renderWordList();
+function startPolling() {
+  if (state.pollingId) {
+    clearInterval(state.pollingId);
+  }
+  state.pollingId = setInterval(syncCards, 2000);
+}
+
+updateRoomUi();
+updateRoomUrl();
 renderRounds();
+syncCards();
+startPolling();

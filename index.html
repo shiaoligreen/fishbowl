@@ -10,6 +10,17 @@
   <main class="app">
     <h1>Fishbowl</h1>
 
+    <section class="panel" id="room-panel">
+      <h2>Room</h2>
+      <p>Share the same room code across devices to submit words together.</p>
+      <form id="room-form" class="room-form">
+        <input id="room-input" type="text" maxlength="32" placeholder="Room code" />
+        <button type="submit">Join Room</button>
+      </form>
+      <p>Current room: <strong id="current-room"></strong></p>
+      <p id="server-status" class="warning" hidden></p>
+    </section>
+
     <section class="panel" id="submission-panel">
       <h2>1) Submit Words</h2>
       <p>Add as many words or phrases as you want.</p>

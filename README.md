@@ -9,13 +9,16 @@ A lightweight online Fishbowl game.
 - One-minute round timer
 - Skip cards during rounds
 - Customizable rounds (Taboo, Charades, One Word, One Sound) with ordering
+- Shared room-based submissions across multiple devices
 
 ## Run locally
 
-Open `/home/runner/work/fishbowl/fishbowl/index.html` in a browser, or run a static server from the repository root:
+Run the server from `/home/runner/work/fishbowl/fishbowl`:
 
 ```bash
-python3 -m http.server 8080
+node server.js
 ```
 
-Then visit `http://localhost:8080`.
+Then open `http://localhost:8080`.
+
+To submit words from multiple devices, open the same URL and join the same room code on each device.
